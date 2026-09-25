@@ -25,6 +25,11 @@ PROSE_START = re.compile(
     r"this code|it looks|it seems|to complete|sure|sorry|certainly)\b", re.I)
 CODE_CHAR = re.compile(r"[;{}()=\[\]<>]")
 PUNCTUATION_LINE = re.compile(r"^[\s)\]};,]*$|^</[\w.-]+>$")
+CLOSERS_ONLY = re.compile(r"^\s*[)\]}][\s)\]};,]*$")
+MEMBER_ACCESS = re.compile(r"[\w$)\]]\.$")
+NUMBER_BEFORE_DOT = re.compile(r"(?<![\w$.])\d+\.$")
+MEMBER_START_EXTRAS = {"go": "(", "rs": "0123456789", "swift": "0123456789", "java": "<", "sql": "*"}
+NO_MEMBER_RULE = {"php", "pl", "pm", "md", "markdown", "txt", "rst", "tex", "adoc", "org"}
 BLOCK_OPENERS = (":", "{", "(", "[", "=>")
 OPEN_TO_CLOSE = {"(": ")", "[": "]", "{": "}"}
 CLOSE_TO_OPEN = {close: open_ for open_, close in OPEN_TO_CLOSE.items()}
@@ -120,7 +125,7 @@ class Context:
         self.base = indent_width(self.line_before)
         following = [line for line in suffix.split("\n")[1:] if line.strip()]
         self.floor = indent_width(following[0]) if following else None
-        name, code_lines = detect_language(prefix)
+        name, self.extension, code_lines = detect_language(prefix)
         language = {**DEFAULT_LANGUAGE, **LANGUAGES.get(name, {})}
         self.language = name
         self.blocks = language["blocks"]
@@ -136,6 +141,17 @@ class Context:
     @property
     def at_line_end(self) -> bool:
         return bool(self.line_before.strip()) and not self.rest_of_line.strip()
+
+    @property
+    def before_closers(self) -> bool:
+        return bool(CLOSERS_ONLY.match(self.rest_of_line)) and self.opens_block(self.code_before)
+
+    @property
+    def after_member_access(self) -> bool:
+        line = self.line_before
+        if self.extension in NO_MEMBER_RULE or not MEMBER_ACCESS.search(line) or NUMBER_BEFORE_DOT.search(line):
+            return False
+        return ends_in_code(self.prefix, self.comments)
 
     def opens_block(self, line: str) -> bool:
         return any(pattern.search(line) for pattern in self.blocks)
@@ -157,8 +173,9 @@ def detect_language(prefix: str) -> tuple:
     for index in range(len(lines) - 1, -1, -1):
         match = HEADER_LINE.match(lines[index])
         if match:
-            return EXTENSIONS.get(match.group(2).lower(), match.group(2).lower()), lines[index + 1:]
-    return None, lines
+            extension = match.group(2).lower()
+            return EXTENSIONS.get(extension, extension), extension, lines[index + 1:]
+    return None, None, lines
 
 
 def formatting_profile(code_lines: list, language: dict) -> tuple:
@@ -272,6 +289,16 @@ def code_chars(text: str, comments: tuple):
         index += 1
 
 
+def ends_in_code(prefix: str, comments: tuple) -> bool:
+    last = len(prefix) - 1
+    return any(index == last for index, _ in code_chars(prefix, comments))
+
+
+def starts_member_name(completion: str, ctx: Context) -> bool:
+    first = completion[:1]
+    return first.isalpha() or first in "_$#" or first in MEMBER_START_EXTRAS.get(ctx.extension, "")
+
+
 def pending_openers(prefix: str, comments: tuple) -> list:
     stack = []
     for _, char in code_chars(prefix, comments):
@@ -372,12 +399,13 @@ def fix_relative_indentation(completion: str, ctx: Context) -> str:
 
 def place(code: str, ctx: Context) -> str:
     lines = code.split("\n")
-    if ctx.at_line_end:
+    if ctx.at_line_end or ctx.before_closers:
         new_line, target = new_line_target(lines[0], ctx)
         if new_line:
             return place_on_new_line(lines, target, ctx)
     completion = trim_prefix_overlap(code.strip(), ctx.prefix)
-    if code[:1] == " " and ctx.line_before.strip() and not ctx.line_before[-1:].isspace() and completion[:1] not in ("", " "):
+    keeps_space = ctx.line_before.strip() and not ctx.line_before[-1:].isspace() and not ctx.after_member_access
+    if code[:1] == " " and keeps_space and completion[:1] not in ("", " "):
         completion = " " + completion
     return fix_relative_indentation(completion, ctx)
 
@@ -405,7 +433,9 @@ def extract_completion(output: str, prefix: str, suffix: str) -> tuple:
         return "", "prose"
     ctx = Context(prefix, suffix)
     completion = place(code, ctx)
-    if ctx.rest_of_line.strip() and "\n" in completion:
+    if ctx.after_member_access and not starts_member_name(completion, ctx):
+        return "", "not-a-member"
+    if ctx.rest_of_line.strip() and not ctx.before_closers and "\n" in completion:
         completion = completion.split("\n", 1)[0]
         if not completion.strip():
             return "", "multi-line-mid-line"
@@ -421,4 +451,6 @@ def extract_completion(output: str, prefix: str, suffix: str) -> tuple:
     completion = completion.rstrip()
     if not completion.strip():
         return "", capped or "empty"
+    if ctx.before_closers and completion.startswith("\n"):
+        completion += "\n" + render_indent(ctx.base, ctx.tabs)
     return completion, reason or capped
