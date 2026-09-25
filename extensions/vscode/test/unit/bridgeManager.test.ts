@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BridgeManager } from "../../src/bridgeManager.ts";
 import type { BridgeManagerDeps, BridgeState } from "../../src/bridgeManager.ts";
+import { NOT_SIGNED_IN } from "../../src/preflight.ts";
 import type { PreflightResult } from "../../src/preflight.ts";
 
 interface Harness {
@@ -9,11 +10,13 @@ interface Harness {
   events: string[];
   states: BridgeState[];
   setHealthy: (healthy: boolean) => void;
+  setSignedIn: (signedIn: boolean) => void;
   advance: (ms: number) => void;
 }
 
 function harness(overrides: Partial<BridgeManagerDeps> & { healthy?: boolean; healthyAfterSpawn?: boolean; check?: PreflightResult } = {}): Harness {
   let healthy = overrides.healthy ?? false;
+  let signedIn = true;
   let clock = 0;
   const events: string[] = [];
   const states: BridgeState[] = [];
@@ -33,6 +36,10 @@ function harness(overrides: Partial<BridgeManagerDeps> & { healthy?: boolean; he
     preflight: async () => {
       events.push("preflight");
       return overrides.check ?? { ok: true, python: ["py", "-3"] };
+    },
+    checkAuth: async () => {
+      events.push("auth");
+      return signedIn ? undefined : NOT_SIGNED_IN;
     },
     spawnBridge: async (python) => {
       events.push(`spawn ${python.join(" ")}`);
@@ -58,6 +65,9 @@ function harness(overrides: Partial<BridgeManagerDeps> & { healthy?: boolean; he
     states,
     setHealthy: (value) => {
       healthy = value;
+    },
+    setSignedIn: (value) => {
+      signedIn = value;
     },
     advance: (ms) => {
       clock += ms;
@@ -144,6 +154,33 @@ test("a connection failure during a request checks the bridge again", async () =
   manager.reportConnectionFailure();
   await manager.ensureRunning();
   assert.ok(events.includes("spawn py -3"));
+});
+
+test("an auth failure stays unavailable through lease renewals", async () => {
+  const { manager, states } = harness({ healthy: true });
+  await manager.ensureRunning();
+  manager.reportAuthFailure();
+  await manager.renew();
+  assert.equal(manager.state, "unavailable");
+  assert.equal(manager.problem, NOT_SIGNED_IN);
+  assert.deepEqual(states, ["ready", "unavailable"]);
+});
+
+test("after an auth failure the retry checks sign-in before using the bridge", async () => {
+  const { manager, events, setSignedIn } = harness({ healthy: true });
+  await manager.ensureRunning();
+  setSignedIn(false);
+  manager.reportAuthFailure();
+  events.length = 0;
+  assert.equal(await manager.ensureRunning(true), false);
+  assert.deepEqual(events, ["auth"]);
+  setSignedIn(true);
+  events.length = 0;
+  assert.equal(await manager.ensureRunning(true), true);
+  assert.deepEqual(events, ["auth", "health", "renew w1"]);
+  events.length = 0;
+  await manager.ensureRunning(true);
+  assert.equal(events.includes("auth"), false);
 });
 
 test("dispose releases the lease", async () => {

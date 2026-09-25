@@ -8,17 +8,25 @@ export interface Health {
 
 interface CompletionPayload {
   choices?: { text?: unknown }[];
-  error?: { message?: string };
+  error?: { message?: string; type?: string };
 }
+
+export const AUTH_FAILED = "authentication_failed";
 
 export class BridgeHttpError extends Error {
   status: number;
+  type: string | undefined;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, type?: string) {
     super(message);
     this.name = "BridgeHttpError";
     this.status = status;
+    this.type = type;
   }
+}
+
+export function isAuthError(error: unknown): boolean {
+  return error instanceof BridgeHttpError && (error.status === 401 || error.type === AUTH_FAILED);
 }
 
 export function isAbortError(error: unknown): boolean {
@@ -47,7 +55,7 @@ export class BridgeClient {
     });
     const payload = (await response.json().catch(() => undefined)) as CompletionPayload | undefined;
     if (!response.ok) {
-      throw new BridgeHttpError(response.status, payload?.error?.message ?? `HTTP ${response.status}`);
+      throw new BridgeHttpError(response.status, payload?.error?.message ?? `HTTP ${response.status}`, payload?.error?.type);
     }
     const text = payload?.choices?.[0]?.text;
     return typeof text === "string" ? text : "";

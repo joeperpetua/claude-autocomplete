@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { BridgeClient } from "./client.ts";
 import { BridgeManager } from "./bridgeManager.ts";
-import { preflight } from "./preflight.ts";
+import { checkClaude, preflight } from "./preflight.ts";
 import { bridgeLogFile, runCommand, spawnBridge } from "./processes.ts";
 import { CompletionProvider } from "./provider.ts";
 import type { Settings } from "./provider.ts";
@@ -40,6 +40,7 @@ export function activate(context: vscode.ExtensionContext): void {
     renewLease: (id) => client.renewLease(id),
     releaseLease: (id) => client.releaseLease(id),
     preflight: () => preflight(runCommand, vscode.workspace.getConfiguration(SECTION).get("pythonPath", ""), process.platform),
+    checkAuth: () => checkClaude(runCommand),
     spawnBridge: (python) => spawnBridge({
       python,
       script: context.asAbsolutePath("bridge/app.py"),

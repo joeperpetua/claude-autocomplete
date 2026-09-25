@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { isAbortError, isConnectionError } from "./client.ts";
+import { isAbortError, isAuthError, isConnectionError } from "./client.ts";
 import type { BridgeClient } from "./client.ts";
 import type { BridgeManager } from "./bridgeManager.ts";
 import { buildPrompt } from "./context.ts";
@@ -237,6 +237,8 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider, 
         }
         if (isConnectionError(error)) {
           this.deps.manager.reportConnectionFailure();
+        } else if (isAuthError(error)) {
+          this.deps.manager.reportAuthFailure();
         }
         this.finish(suggestion, `error: ${error instanceof Error ? error.message : String(error)}`);
         if (this.current === suggestion) {
