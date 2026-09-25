@@ -22,6 +22,7 @@ DISCONNECT_POLL_SECONDS = 0.05
 FAKE_COMPLETION = os.environ.get("BRIDGE_FAKE_COMPLETION")
 FAKE_DELAY_MS = int(os.environ.get("BRIDGE_FAKE_DELAY_MS", "300"))
 EXPLANATION_REASONS = ("untagged", "mentions-cursor", "prose")
+AUTH_FAILED = "authentication_failed"
 
 POOL_SIZE = int(os.environ.get("BRIDGE_POOL_SIZE", "2"))
 MANAGED = os.environ.get("BRIDGE_MANAGED") == "1"
@@ -112,6 +113,12 @@ class WorkerError(Exception):
     pass
 
 
+class ClaudeApiError(WorkerError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 class ClaudeWorker:
     def __init__(self, model_id: str):
         self.model_id = model_id
@@ -178,10 +185,12 @@ class ClaudeWorker:
         return event
 
     def wait_ready(self):
+        # The CLI emits nothing until it reads input; a local /clear turn proves it booted without an API call.
+        self.send_user("/clear")
         deadline = time.time() + WORKER_READY_TIMEOUT_SECONDS
         while time.time() < deadline:
             event = self.next_event(DISCONNECT_POLL_SECONDS)
-            if event is not None and event.get("type") == "system":
+            if event is not None and event.get("type") == "result":
                 return
         if not self.alive():
             raise WorkerError(f"{self.name} exited during startup")
@@ -191,6 +200,7 @@ class ClaudeWorker:
         self.result_pending = True
         self.send_user(prompt)
         deadline = time.time() + WORKER_TURN_TIMEOUT_SECONDS
+        api_error = None
         while time.time() < deadline:
             if client_disconnected(sock):
                 raise ClientDisconnected()
@@ -198,6 +208,9 @@ class ClaudeWorker:
             if event is None:
                 continue
             if event.get("type") == "assistant":
+                if event.get("is_api_error_message") or event.get("error"):
+                    api_error = event.get("error") or "api_error"
+                    continue
                 content = event.get("message", {}).get("content", [])
                 parts = [block.get("text", "") for block in content if block.get("type") == "text"]
                 if parts:
@@ -205,7 +218,10 @@ class ClaudeWorker:
             elif event.get("type") == "result":
                 self.result_pending = False
                 if event.get("is_error"):
-                    raise WorkerError(f"{self.name} turn failed: {event.get('result') or event.get('subtype')}")
+                    message = event.get("result") or event.get("subtype")
+                    if api_error:
+                        raise ClaudeApiError(api_error, message)
+                    raise WorkerError(f"{self.name} turn failed: {message}")
                 return event.get("result") or ""
         raise WorkerError(f"{self.name} gave no answer within {WORKER_TURN_TIMEOUT_SECONDS}s")
 
@@ -477,6 +493,7 @@ class CLIBridgeHandler(BaseHTTPRequestHandler):
 
         # 3. Execute subprocess
         exec_start = time.time()
+        error_type = "bridge_error"
         try:
             if use_fake:
                 result = run_fake(cmd, self.connection)
@@ -492,14 +509,23 @@ class CLIBridgeHandler(BaseHTTPRequestHandler):
                 raw_output = result.stdout
                 status_code = 200
             else:
-                raw_output = result.stderr or f"Exit code {result.returncode}"
-                logger.error(f"Subprocess returned non-zero exit code ({result.returncode}): {raw_output.strip()}")
+                raw_output = result.stderr.strip() or result.stdout.strip() or f"Exit code {result.returncode}"
+                logger.error(f"Subprocess returned non-zero exit code ({result.returncode}): {raw_output}")
                 status_code = 500
         except ClientDisconnected:
             logger.warning(
                 f"[{client_ip}] Client aborted after {(time.time() - exec_start) * 1000:.1f}ms, cancelled '{tool}'."
             )
             return
+        except ClaudeApiError as e:
+            error_type = e.code
+            if e.code == AUTH_FAILED:
+                raw_output = f"The claude CLI is not signed in ({e}). Run `claude auth login` in a terminal."
+                status_code = 401
+            else:
+                raw_output = str(e)
+                status_code = 502
+            logger.error(f"[{client_ip}] Claude API error ({e.code}): {e}")
         except WorkerError as e:
             raw_output = str(e)
             logger.error(f"[{client_ip}] Warm worker failed: {e}")
@@ -529,7 +555,7 @@ class CLIBridgeHandler(BaseHTTPRequestHandler):
 
         try:
             if status_code != 200:
-                self.send_json(status_code, {"error": {"message": clean_text, "type": "bridge_error"}})
+                self.send_json(status_code, {"error": {"message": clean_text, "type": error_type}})
             elif stream:
                 self.send_sse(self.build_chunks(requested_model, created, clean_text))
             else:

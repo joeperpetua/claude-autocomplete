@@ -1,4 +1,6 @@
+import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,50 @@ class FakeProcess:
 
     def communicate(self, timeout=None):
         return "", ""
+
+
+def scripted_process(*events):
+    class ScriptedProcess(FakeProcess):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            self.stdout = iter(json.dumps(event) + "\n" for event in events)
+
+    return ScriptedProcess
+
+
+class WorkerEventTests(unittest.TestCase):
+    def setUp(self):
+        self.sock, self.peer = socket.socketpair()
+        self.addCleanup(self.sock.close)
+        self.addCleanup(self.peer.close)
+
+    def worker(self, *events):
+        with mock.patch.object(app.subprocess, "Popen", side_effect=scripted_process(*events)):
+            return app.ClaudeWorker("haiku")
+
+    def sent(self, worker):
+        return [json.loads(call.args[0]) for call in worker.proc.stdin.write.call_args_list]
+
+    def test_ready_after_local_clear_turn(self):
+        worker = self.worker({"type": "conversation_reset"}, {"type": "system", "subtype": "init"}, {"type": "result", "is_error": False})
+        worker.wait_ready()
+        self.assertEqual(self.sent(worker)[0]["message"]["content"], "/clear")
+
+    def test_turn_returns_assistant_text(self):
+        worker = self.worker({"type": "assistant", "message": {"content": [{"type": "text", "text": "<insert>x</insert>"}]}})
+        self.assertEqual(worker.complete("prompt", self.sock), "<insert>x</insert>")
+
+    def test_auth_failure_raises_api_error(self):
+        message = "Failed to authenticate: OAuth session expired and could not be refreshed"
+        worker = self.worker(
+            {"type": "assistant", "error": "authentication_failed", "is_api_error_message": True,
+             "message": {"content": [{"type": "text", "text": message}]}},
+            {"type": "result", "subtype": "success", "is_error": True, "result": message},
+        )
+        with self.assertRaises(app.ClaudeApiError) as caught:
+            worker.complete("prompt", self.sock)
+        self.assertEqual((caught.exception.code, str(caught.exception)), (app.AUTH_FAILED, message))
+        self.assertFalse(worker.result_pending)
 
 
 class NoWindowTests(unittest.TestCase):

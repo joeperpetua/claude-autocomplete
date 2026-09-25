@@ -6,6 +6,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from unittest import mock
 
 os.environ["BRIDGE_LOG_FILE"] = os.path.join(tempfile.gettempdir(), "autocomplete-bridge-tests.log")
 os.environ["BRIDGE_FAKE_COMPLETION"] = "(fullName);"
@@ -94,6 +95,18 @@ class HttpTests(unittest.TestCase):
                     response = json.loads(body)
                     self.assertEqual(response["choices"][0]["text"], "(fullName);")
                     self.assertEqual(set(response["usage"]), {"prompt_tokens", "completion_tokens", "total_tokens"})
+
+    def test_claude_api_errors_map_to_http_errors(self):
+        cases = {
+            app.AUTH_FAILED: (401, "claude auth login"),
+            "rate_limit": (502, "Rate limited"),
+        }
+        for code, (expected_status, expected_text) in cases.items():
+            with self.subTest(code=code), mock.patch.object(app, "run_fake", side_effect=app.ClaudeApiError(code, "Rate limited" if code == "rate_limit" else "OAuth session expired")):
+                status, _, body = self.call("POST", "/v1/completions", {"model": "claude-haiku", "prompt": FIM})
+                error = json.loads(body)["error"]
+                self.assertEqual((status, error["type"]), (expected_status, code))
+                self.assertIn(expected_text, error["message"])
 
     def test_health_check(self):
         status, _, body = self.call("GET", "/")
