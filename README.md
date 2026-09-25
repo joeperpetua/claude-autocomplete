@@ -7,7 +7,7 @@ Inline code completion from Claude for people who have a Claude subscription but
 | Folder | Contents |
 |---|---|
 | `bridge/` | Python HTTP server. It serves `POST /v1/completions` and keeps warm `claude` workers. |
-| `extensions/vscode/` | VS Code extension (planned). It starts the bridge and shows the completions. |
+| `extensions/vscode/` | VS Code extension. It starts the bridge and shows the completions. See its README. |
 | `configs/` | Configs for other clients: Continue, Zed, Twinny, minuet, Tabby. |
 
 ## Bridge

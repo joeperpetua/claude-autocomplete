@@ -1,0 +1,147 @@
+{
+  "name": "claude-autocomplete",
+  "displayName": "Claude Autocomplete",
+  "description": "Inline code completions from Claude through your Claude subscription.",
+  "version": "0.1.0",
+  "publisher": "joeperpetua",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeAutocomplete.toggle",
+        "title": "Claude Autocomplete: Turn On or Off"
+      },
+      {
+        "command": "claudeAutocomplete.trigger",
+        "title": "Claude Autocomplete: Suggest Here"
+      },
+      {
+        "command": "claudeAutocomplete.accept",
+        "title": "Claude Autocomplete: Accept Suggestion"
+      },
+      {
+        "command": "claudeAutocomplete.dismiss",
+        "title": "Claude Autocomplete: Dismiss Suggestion"
+      },
+      {
+        "command": "claudeAutocomplete.retryBridge",
+        "title": "Claude Autocomplete: Retry Bridge Start"
+      },
+      {
+        "command": "claudeAutocomplete.showLog",
+        "title": "Claude Autocomplete: Show Log"
+      },
+      {
+        "command": "claudeAutocomplete.openBridgeLog",
+        "title": "Claude Autocomplete: Open Bridge Log"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claudeAutocomplete.accept",
+        "key": "ctrl+tab",
+        "when": "editorTextFocus && claudeAutocomplete.hasSuggestion"
+      },
+      {
+        "command": "claudeAutocomplete.dismiss",
+        "key": "escape",
+        "when": "editorTextFocus && claudeAutocomplete.hasSuggestion"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Autocomplete",
+      "properties": {
+        "claudeAutocomplete.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline completions."
+        },
+        "claudeAutocomplete.model": {
+          "type": "string",
+          "enum": [
+            "claude-haiku",
+            "claude-sonnet",
+            "claude-opus"
+          ],
+          "enumDescriptions": [
+            "Fastest. About 1s per completion.",
+            "About 1.5s per completion.",
+            "About 2.5s per completion."
+          ],
+          "default": "claude-haiku",
+          "description": "Model for completions."
+        },
+        "claudeAutocomplete.debounceMs": {
+          "type": "number",
+          "default": 250,
+          "minimum": 0,
+          "description": "Time to wait after the last keystroke before a request starts, in milliseconds."
+        },
+        "claudeAutocomplete.maxPrefixChars": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 100,
+          "description": "Maximum characters of code before the cursor to send."
+        },
+        "claudeAutocomplete.maxSuffixChars": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "description": "Maximum characters of code after the cursor to send."
+        },
+        "claudeAutocomplete.disabledLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "plaintext",
+            "markdown",
+            "scminput"
+          ],
+          "description": "Language IDs without completions."
+        },
+        "claudeAutocomplete.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the bridge automatically when no bridge answers on the port."
+        },
+        "claudeAutocomplete.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python 3.10 or newer that runs the bridge. Empty: try py -3, python3 and python."
+        },
+        "claudeAutocomplete.port": {
+          "type": "number",
+          "default": 11435,
+          "description": "Local port of the bridge. Reload the window after a change."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/unit/**/*.test.ts\"",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}
