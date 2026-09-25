@@ -1,0 +1,11 @@
+{
+  "edit_predictions": {
+    "provider": "open_ai_compatible_api",
+    "open_ai_compatible_api": {
+      "api_url": "http://127.0.0.1:11435/v1/completions",
+      "model": "claude-haiku",
+      "prompt_format": "star_coder",
+      "max_output_tokens": 64
+    }
+  }
+}

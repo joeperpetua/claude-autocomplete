@@ -1,0 +1,6 @@
+[model.completion.http]
+kind = "vllm/completion"
+model_name = "claude-haiku"
+api_endpoint = "http://127.0.0.1:11435/v1"
+api_key = "bridge"
+prompt_template = "<fim_prefix>{prefix}<fim_suffix>{suffix}<fim_middle>"

@@ -1,0 +1,8 @@
+__pycache__/
+*.log
+node_modules/
+dist/
+out/
+*.vsix
+.vscode-test/
+extensions/vscode/bridge/
