@@ -134,14 +134,18 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/unit/**/*.test.ts\"",
+    "test:integration": "npm run build && node test/integration/build.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON test/integration/runTest.ts",
     "vscode:prepublish": "npm run build",
     "package": "vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
     "@types/vscode": "1.95.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.25.0",
+    "mocha": "^11.8.0",
     "typescript": "^5.8.0"
   }
 }

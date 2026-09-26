@@ -2,6 +2,8 @@ src/**
 test/**
 scripts/**
 node_modules/**
+out/**
+.vscode-test/**
 tsconfig.json
 **/*.map
 **/__pycache__/**
