@@ -1,0 +1,9 @@
+{
+  "claudeAutocomplete.port": 11499,
+  "claudeAutocomplete.debounceMs": 50,
+  "workbench.startupEditor": "none",
+  "security.workspace.trust.enabled": false,
+  "files.hotExit": "off",
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "chat.disableAIFeatures": true
+}

@@ -100,6 +100,48 @@ class SameLineTests(unittest.TestCase):
         self.assertEqual(complete("foo", "const x = 1;", " // note\n"), "foo")
 
 
+class BlockBeforeClosersTests(unittest.TestCase):
+    def test_body_moves_the_auto_closed_brace_to_its_own_line(self):
+        self.assertEqual(complete('console.log("many");', "// a.ts\nif (total > 1) {", "}\n"), '\n  console.log("many");\n')
+
+    def test_nested_block_keeps_the_closer_at_the_opening_indent(self):
+        self.assertEqual(complete("return 1;", "// a.ts\nfunction f() {\n  if (x) {", "}\n}\n"), "\n    return 1;\n  ")
+
+    def test_repeated_closer_is_trimmed(self):
+        self.assertEqual(complete("\n  console.log(1);\n}", "// a.ts\nif (x) {", "}\n"), "\n  console.log(1);\n")
+
+    def test_object_literal_before_closing_call(self):
+        self.assertEqual(complete("count: 0,", "// a.ts\nuseState({", "});\n"), "\n  count: 0,\n")
+
+    def test_other_text_after_cursor_stays_single_line(self):
+        self.assertEqual(complete("a();\nb();", "// a.ts\nif (x) {", "} else {\n"), "a();")
+
+
+class MemberAccessTests(unittest.TestCase):
+    def test_non_member_after_dot_is_dropped(self):
+        self.assertEqual(reason(tagged("0"), "// a.ts\nconst first = names."), "not-a-member")
+        self.assertEqual(reason(tagged("\n    foo();"), "// a.ts\nconst first = names."), "not-a-member")
+
+    def test_member_names_are_kept(self):
+        self.assertEqual(complete("length;", "// a.ts\nconst n = names."), "length;")
+        self.assertEqual(complete("#count", "// a.ts\nreturn this."), "#count")
+
+    def test_echoed_prefix_and_leading_space_are_removed(self):
+        self.assertEqual(complete("names.length", "// a.ts\nconst n = names."), "length")
+        self.assertEqual(complete(" length", "// a.ts\nconst n = names."), "length")
+
+    def test_number_literals_comments_and_strings_are_not_member_access(self):
+        self.assertEqual(complete("5;", "// a.ts\nconst x = 1."), "5;")
+        self.assertEqual(complete(" Then call it.", "// a.ts\n// Build the list."), " Then call it.")
+        self.assertEqual(complete('com";', '// a.ts\nconst host = "example.'), 'com";')
+
+    def test_language_specific_member_starts(self):
+        self.assertEqual(complete("0", "// a.rs\nlet a = pair."), "0")
+        self.assertEqual(complete("(string)", "// a.go\nv := x."), "(string)")
+        self.assertEqual(complete("*", "-- q.sql\nSELECT t."), "*")
+        self.assertEqual(complete('"x";', "// a.php\n$a = $b."), '"x";')
+
+
 class NewLineTests(unittest.TestCase):
     def test_brace_opens_indented_body(self):
         for code in ("\nreturn a + b;\n", "\n  return a + b;\n", "\n return a + b;\n"):
@@ -235,7 +277,7 @@ class RepetitionAndLengthTests(unittest.TestCase):
 
 class LanguageDetectionTests(unittest.TestCase):
     def test_uses_last_file_header(self):
-        name, lines = completion.detect_language("// Path: x.py\n// foo\n// main.go\npackage main")
+        name, _, lines = completion.detect_language("// Path: x.py\n// foo\n// main.go\npackage main")
         self.assertEqual((name, lines), ("go", ["package main"]))
 
     def test_without_header(self):

@@ -10,6 +10,8 @@ export type PreflightResult =
   | { ok: true; python: string[] }
   | { ok: false; problem: string };
 
+export const NOT_SIGNED_IN = "The claude CLI is not signed in. Run `claude auth login` in a terminal.";
+
 const PYTHON_CHECK = "import sys; print(sys.executable); print(sys.version_info >= (3, 10))";
 
 export function pythonCandidates(configured: string, platform: string): string[][] {
@@ -53,7 +55,7 @@ export async function checkClaude(run: RunCommand): Promise<string | undefined> 
   } catch {
     loggedIn = false;
   }
-  return loggedIn ? undefined : "The claude CLI is not signed in. Run `claude auth login` in a terminal.";
+  return loggedIn ? undefined : NOT_SIGNED_IN;
 }
 
 export async function preflight(run: RunCommand, configuredPython: string, platform: string): Promise<PreflightResult> {

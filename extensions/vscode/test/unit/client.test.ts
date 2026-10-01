@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BridgeClient, BridgeHttpError, isAbortError, isConnectionError } from "../../src/client.ts";
+import { BridgeClient, BridgeHttpError, isAbortError, isAuthError, isConnectionError } from "../../src/client.ts";
 import type { Fetch } from "../../src/client.ts";
 
 interface Call {
@@ -48,6 +48,16 @@ test("complete throws the bridge error message", async () => {
     new BridgeClient(1, fetch).complete("m", "p", new AbortController().signal),
     (error: unknown) => error instanceof BridgeHttpError && error.status === 500 && error.message.includes("worker"),
   );
+});
+
+test("a sign-in failure is an auth error, other bridge errors are not", async () => {
+  const signedOut = fakeFetch(() => json(401, { error: { message: "The claude CLI is not signed in", type: "authentication_failed" } }));
+  const error = await new BridgeClient(1, signedOut.fetch).complete("m", "p", new AbortController().signal).catch((caught: unknown) => caught);
+  assert.ok(error instanceof BridgeHttpError);
+  assert.equal(error.type, "authentication_failed");
+  assert.equal(isAuthError(error), true);
+  assert.equal(isAuthError(new BridgeHttpError(502, "Rate limited", "rate_limit")), false);
+  assert.equal(isAuthError(new TypeError("fetch failed")), false);
 });
 
 test("health returns the status or undefined", async () => {

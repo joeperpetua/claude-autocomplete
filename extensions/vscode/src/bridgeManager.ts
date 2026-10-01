@@ -1,4 +1,5 @@
 import type { Health } from "./client.ts";
+import { NOT_SIGNED_IN } from "./preflight.ts";
 import type { PreflightResult } from "./preflight.ts";
 
 export type BridgeState = "unknown" | "starting" | "ready" | "unavailable";
@@ -9,6 +10,7 @@ export interface BridgeManagerDeps {
   renewLease: (clientId: string) => Promise<boolean>;
   releaseLease: (clientId: string) => Promise<void>;
   preflight: () => Promise<PreflightResult>;
+  checkAuth: () => Promise<string | undefined>;
   spawnBridge: (python: string[]) => Promise<void>;
   autoStart: () => boolean;
   log: (message: string) => void;
@@ -30,6 +32,7 @@ export class BridgeManager {
   private readonly listeners: StateListener[] = [];
   private pending: Promise<boolean> | undefined;
   private failedAt: number | undefined;
+  private signedOut = false;
 
   constructor(deps: BridgeManagerDeps) {
     this.deps = deps;
@@ -60,7 +63,7 @@ export class BridgeManager {
       return;
     }
     if (await this.deps.renewLease(this.deps.clientId)) {
-      if (this.state !== "ready") {
+      if (this.state !== "ready" && !this.signedOut) {
         this.setState("ready", undefined);
       }
       return;
@@ -78,11 +81,23 @@ export class BridgeManager {
     void this.ensureRunning();
   }
 
+  reportAuthFailure(): void {
+    this.signedOut = true;
+    this.fail(NOT_SIGNED_IN);
+  }
+
   async dispose(): Promise<void> {
     await this.deps.releaseLease(this.deps.clientId);
   }
 
   private async start(): Promise<boolean> {
+    if (this.signedOut) {
+      const problem = await this.deps.checkAuth();
+      if (problem) {
+        return this.fail(problem);
+      }
+      this.signedOut = false;
+    }
     if (await this.deps.health()) {
       return this.becomeReady("found a running bridge");
     }

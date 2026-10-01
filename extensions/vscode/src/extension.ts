@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { BridgeClient } from "./client.ts";
 import { BridgeManager } from "./bridgeManager.ts";
-import { preflight } from "./preflight.ts";
+import type { BridgeState } from "./bridgeManager.ts";
+import { checkClaude, preflight } from "./preflight.ts";
 import { bridgeLogFile, runCommand, spawnBridge } from "./processes.ts";
 import { CompletionProvider } from "./provider.ts";
 import type { Settings } from "./provider.ts";
@@ -11,6 +12,11 @@ const SECTION = "claudeAutocomplete";
 const LEASE_RENEW_MS = 20000;
 
 let manager: BridgeManager | undefined;
+
+export interface ExtensionApi {
+  onDidLog: vscode.Event<string>;
+  bridgeState: () => BridgeState;
+}
 
 function readSettings(): Settings {
   const config = vscode.workspace.getConfiguration(SECTION);
@@ -24,9 +30,13 @@ function readSettings(): Settings {
   };
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const output = vscode.window.createOutputChannel("Claude Autocomplete", { log: true });
-  const log = (message: string) => output.info(message);
+  const logged = new vscode.EventEmitter<string>();
+  const log = (message: string) => {
+    output.info(message);
+    logged.fire(message);
+  };
   const config = vscode.workspace.getConfiguration(SECTION);
   const port = config.get("port", 11435);
   const logDir = context.globalStorageUri.fsPath;
@@ -40,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
     renewLease: (id) => client.renewLease(id),
     releaseLease: (id) => client.releaseLease(id),
     preflight: () => preflight(runCommand, vscode.workspace.getConfiguration(SECTION).get("pythonPath", ""), process.platform),
+    checkAuth: () => checkClaude(runCommand),
     spawnBridge: (python) => spawnBridge({
       python,
       script: context.asAbsolutePath("bridge/app.py"),
@@ -82,6 +93,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     output,
+    logged,
     status,
     provider,
     { dispose: () => clearInterval(leaseTimer) },
@@ -115,6 +127,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   log(`Activated. Bridge port ${port}, model ${readSettings().model}`);
   void bridge.ensureRunning();
+  return { onDidLog: logged.event, bridgeState: () => bridge.state };
 }
 
 export async function deactivate(): Promise<void> {
