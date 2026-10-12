@@ -267,6 +267,14 @@ class RepetitionAndLengthTests(unittest.TestCase):
     def test_separator_comment_is_kept(self):
         self.assertEqual(complete("// ------------------------------", ""), "// ------------------------------")
 
+    def test_repeated_digits_inside_a_literal_are_kept(self):
+        css = "\n  color: #ffffff;\n  background: #000000;"
+        self.assertEqual(complete(css, "/* a.css */\n.button {", "\n}\n"), css)
+        self.assertEqual(complete("uint32_t mask = 0xFFFFFFFF;", "// a.c\n"), "uint32_t mask = 0xFFFFFFFF;")
+
+    def test_runaway_single_character_is_discarded(self):
+        self.assertEqual(reason(tagged("0" * 60), "x = "), "repetition")
+
     def test_long_completion_is_capped_on_a_line_boundary(self):
         code = "\n".join(f"v{i} = {i};" for i in range(400))
         text, why = completion.extract_completion(tagged(code), "", "\n")
