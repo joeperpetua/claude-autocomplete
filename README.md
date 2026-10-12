@@ -20,6 +20,8 @@ python bridge/app.py
 
 The bridge listens on `http://127.0.0.1:11435`.
 
+Clients name a model as `claude-<alias>`, for example `claude-sonnet`. The bridge pins `claude-haiku` to Haiku 4.5 (`claude-haiku-4-5`), because Haiku 5.5 starts its answers about 0.3s later.
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `BRIDGE_PORT` | `11435` | Port to listen on. |

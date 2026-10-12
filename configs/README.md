@@ -2,7 +2,7 @@
 
 These clients can send inline completions to the bridge. Start the bridge first (`python bridge/app.py`). It listens on `http://127.0.0.1:11435`.
 
-Every config uses `claude-haiku`. To use another model, change the model name to `claude-sonnet` or `claude-opus`. Haiku is the only model fast enough for most completions (about 1.05s end to end with a 250ms debounce). See `bridge/tests/eval_corpus.py`.
+Every config uses `claude-haiku`. The bridge pins it to Haiku 4.5 (`claude-haiku-4-5`), because Haiku 5.5 starts its answers about 0.3s later. To use another model, change the model name to `claude-sonnet` or `claude-opus`. Haiku is the only model fast enough for most completions (about 1.05s end to end with a 250ms debounce). See `bridge/tests/eval_corpus.py`.
 
 Use `127.0.0.1`, not `localhost`. The bridge does not listen on IPv6, and some clients resolve `localhost` to `::1`.
 
