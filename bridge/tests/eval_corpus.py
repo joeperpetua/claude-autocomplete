@@ -104,6 +104,13 @@ def contains_any(*options):
     return check
 
 
+def contains_none(*options):
+    def check(text, case):
+        return not any(option in text for option in options)
+    check.__name__ = f"contains_none{options!r}"
+    return check
+
+
 def first_line_indent(width):
     def check(text, case):
         lines = [line for line in content_lines(text) if line.strip()]
@@ -152,6 +159,10 @@ CASES = [
      "suffix": "\n    </div>\n  );\n}\n", "checks": [optional(check_same_line), optional(starts_with("<")), lines_at_least(6)]},
     {"name": "ts object literal", "file": "config.ts", "prefix": "export function config() {\n  const options = ",
      "suffix": ";\n  return options;\n}\n", "checks": [starts_with("{"), lines_at_least(2), check_no_suffix_duplicate]},
+    {"name": "ts jsdoc description", "file": "session.ts", "prefix": "/**\n * ",
+     "suffix": "\n * @returns \n */\nexport function isSessionExpiryValid() {\n  const tokenExpiry = getTokenExpiryMoment()\n"
+               "  return tokenExpiry.diff(Moment()) < EXPIRED_SESSION_MAX_MS\n}\n",
+     "checks": [check_same_line, contains_none("/*", "*/")]},
     {"name": "ts after statement", "file": "names.ts", "prefix": TS + "const names = getNames(fullName);",
      "suffix": "\n", "checks": [check_new_line_or_empty]},
     {"name": "jsx text right of cursor", "file": "Page.tsx",

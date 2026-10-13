@@ -147,6 +147,10 @@ class Context:
         return bool(CLOSERS_ONLY.match(self.rest_of_line)) and self.opens_block(self.code_before)
 
     @property
+    def in_block_comment(self) -> bool:
+        return mode_at_end(self.prefix, self.comments) == "block"
+
+    @property
     def after_member_access(self) -> bool:
         line = self.line_before
         if self.extension in NO_MEMBER_RULE or not MEMBER_ACCESS.search(line) or NUMBER_BEFORE_DOT.search(line):
@@ -287,6 +291,22 @@ def code_chars(text: str, comments: tuple):
             if char == mode or char == "\n" and mode != "`":
                 mode = None
         index += 1
+    return mode
+
+
+def mode_at_end(text: str, comments: tuple):
+    scanner = code_chars(text, comments)
+    try:
+        while True:
+            next(scanner)
+    except StopIteration as done:
+        return done.value
+
+
+def stay_in_comment(completion: str, suffix: str) -> str:
+    delimiters = ("/*", "*/") if "*/" in suffix else ("/*",)
+    cuts = [index for index in (completion.find(delimiter) for delimiter in delimiters) if index != -1]
+    return completion[:min(cuts)].rstrip() if cuts else completion
 
 
 def ends_in_code(prefix: str, comments: tuple) -> bool:
@@ -433,6 +453,10 @@ def extract_completion(output: str, prefix: str, suffix: str) -> tuple:
         return "", "prose"
     ctx = Context(prefix, suffix)
     completion = place(code, ctx)
+    if ctx.in_block_comment:
+        completion = stay_in_comment(completion, ctx.suffix)
+        if not completion.strip():
+            return "", "leaves-comment"
     if ctx.after_member_access and not starts_member_name(completion, ctx):
         return "", "not-a-member"
     if ctx.rest_of_line.strip() and not ctx.before_closers and "\n" in completion:
