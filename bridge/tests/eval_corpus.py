@@ -111,6 +111,13 @@ def contains_none(*options):
     return check
 
 
+def later_lines_start_with(token):
+    def check(text, case):
+        return all(line.lstrip().startswith(token) for line in text.split("\n")[1:] if line.strip())
+    check.__name__ = f"later_lines_start_with({token!r})"
+    return check
+
+
 def first_line_indent(width):
     def check(text, case):
         lines = [line for line in content_lines(text) if line.strip()]
@@ -162,7 +169,7 @@ CASES = [
     {"name": "ts jsdoc description", "file": "session.ts", "prefix": "/**\n * ",
      "suffix": "\n * @returns \n */\nexport function isSessionExpiryValid() {\n  const tokenExpiry = getTokenExpiryMoment()\n"
                "  return tokenExpiry.diff(Moment()) < EXPIRED_SESSION_MAX_MS\n}\n",
-     "checks": [check_same_line, contains_none("/*", "*/")]},
+     "checks": [check_same_line, contains_none("/*", "*/"), later_lines_start_with("*")]},
     {"name": "ts after statement", "file": "names.ts", "prefix": TS + "const names = getNames(fullName);",
      "suffix": "\n", "checks": [check_new_line_or_empty]},
     {"name": "jsx text right of cursor", "file": "Page.tsx",

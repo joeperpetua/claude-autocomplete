@@ -296,6 +296,16 @@ class BlockCommentTests(unittest.TestCase):
         self.assertEqual(complete(' comment */";', '// a.ts\nconst pattern = "/*', suffix), ' comment */";')
         self.assertEqual(complete(" and */ markers", "// a.ts\n// see /*", suffix), " and */ markers")
 
+    def test_continuation_lines_get_the_comment_leader(self):
+        text = complete("Checks the expiry.\nReturns true while the token is valid.\n\nUse it before a request.",
+                        "// a.ts\n/**\n * ", "\n * @returns \n */\n")
+        self.assertEqual(text, "Checks the expiry.\n * Returns true while the token is valid.\n *\n * Use it before a request.")
+
+    def test_lines_with_a_leader_and_comments_without_stars_are_kept(self):
+        self.assertEqual(complete("Checks the expiry.\n * Returns true.", "// a.ts\n/**\n * ", "\n */\n"),
+                         "Checks the expiry.\n * Returns true.")
+        self.assertEqual(complete("numbers.\nReturns the sum.", "// a.c\n/*\n   Adds two ", "\n*/\n"), "numbers.\nReturns the sum.")
+
     def test_reply_with_only_a_closer_is_dropped(self):
         self.assertEqual(reason(tagged(" */"), "// a.ts\n/**\n * Adds two numbers.", "\n * @returns \n */\n"), "leaves-comment")
 

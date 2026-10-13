@@ -309,6 +309,16 @@ def stay_in_comment(completion: str, suffix: str) -> str:
     return completion[:min(cuts)].rstrip() if cuts else completion
 
 
+def add_comment_leader(completion: str, line_before: str) -> str:
+    stripped = line_before.lstrip()
+    if not stripped.startswith("*") or stripped.startswith("*/"):
+        return completion
+    leader = line_before[:len(line_before) - len(stripped)] + "* "
+    lines = completion.split("\n")
+    later = [line if line.lstrip().startswith("*") else (leader + line.lstrip()).rstrip() for line in lines[1:]]
+    return "\n".join(lines[:1] + later)
+
+
 def ends_in_code(prefix: str, comments: tuple) -> bool:
     last = len(prefix) - 1
     return any(index == last for index, _ in code_chars(prefix, comments))
@@ -457,6 +467,7 @@ def extract_completion(output: str, prefix: str, suffix: str) -> tuple:
         completion = stay_in_comment(completion, ctx.suffix)
         if not completion.strip():
             return "", "leaves-comment"
+        completion = add_comment_leader(completion, ctx.line_before)
     if ctx.after_member_access and not starts_member_name(completion, ctx):
         return "", "not-a-member"
     if ctx.rest_of_line.strip() and not ctx.before_closers and "\n" in completion:
