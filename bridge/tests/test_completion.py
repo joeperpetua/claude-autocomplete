@@ -283,6 +283,41 @@ class RepetitionAndLengthTests(unittest.TestCase):
         self.assertTrue(code.startswith(text) and code[len(text)] == "\n")
 
 
+class BlockCommentTests(unittest.TestCase):
+    def test_new_comment_inside_an_open_comment_is_dropped(self):
+        self.assertEqual(reason(tagged("/**\n * Adds two numbers.\n */"), "// a.ts\n/**\n * ", "\n */\n"), "leaves-comment")
+
+    def test_reply_from_issue_2_is_dropped(self):
+        output = ("<INSERT>\n/**\n * Checks if the session expiry time is still valid (within acceptable limits)\n"
+                  " * @returns true if session expiry is within EXPIRED_SESSION_MAX_MS, false otherwise\n */\n</INSERT>")
+        suffix = "\n * @returns \n */\nexport function isSessionExpiryValid() {\n  return getTokenExpiryMoment().diff(Moment()) < EXPIRED_SESSION_MAX_MS\n}\n"
+        self.assertEqual(completion.extract_completion(output, "// src/session.ts\n/**\n * ", suffix), ("", "leaves-comment"))
+
+    def test_early_closer_is_cut(self):
+        self.assertEqual(complete("numbers.\n*/", "// a.ts\n/**\n * Adds two ", "\n * @returns \n */\n"), "numbers.")
+
+    def test_closer_is_kept_when_the_comment_is_not_closed_yet(self):
+        self.assertEqual(complete("numbers.\n */", "// a.ts\n/**\n * Adds two ", "\nfunction add(a, b) {\n}\n"), "numbers.\n */")
+
+    def test_opener_inside_a_string_or_line_comment_is_not_a_comment(self):
+        suffix = "\nconst end = 1 /* done */\n"
+        self.assertEqual(complete(' comment */";', '// a.ts\nconst pattern = "/*', suffix), ' comment */";')
+        self.assertEqual(complete(" and */ markers", "// a.ts\n// see /*", suffix), " and */ markers")
+
+    def test_continuation_lines_get_the_comment_leader(self):
+        text = complete("Checks the expiry.\nReturns true while the token is valid.\n\nUse it before a request.",
+                        "// a.ts\n/**\n * ", "\n * @returns \n */\n")
+        self.assertEqual(text, "Checks the expiry.\n * Returns true while the token is valid.\n *\n * Use it before a request.")
+
+    def test_lines_with_a_leader_and_comments_without_stars_are_kept(self):
+        self.assertEqual(complete("Checks the expiry.\n * Returns true.", "// a.ts\n/**\n * ", "\n */\n"),
+                         "Checks the expiry.\n * Returns true.")
+        self.assertEqual(complete("numbers.\nReturns the sum.", "// a.c\n/*\n   Adds two ", "\n*/\n"), "numbers.\nReturns the sum.")
+
+    def test_reply_with_only_a_closer_is_dropped(self):
+        self.assertEqual(reason(tagged(" */"), "// a.ts\n/**\n * Adds two numbers.", "\n * @returns \n */\n"), "leaves-comment")
+
+
 class LanguageDetectionTests(unittest.TestCase):
     def test_uses_last_file_header(self):
         name, _, lines = completion.detect_language("// Path: x.py\n// foo\n// main.go\npackage main")
