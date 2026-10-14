@@ -72,6 +72,15 @@ class WorkerEventTests(unittest.TestCase):
         self.assertFalse(worker.result_pending)
 
 
+class ModelTests(unittest.TestCase):
+    def test_haiku_alias_is_pinned_to_haiku_4_5(self):
+        self.assertEqual(app.parse_model("claude-haiku"), ("claude", "claude-haiku-4-5"))
+
+    def test_other_aliases_pass_through(self):
+        self.assertEqual(app.parse_model("claude-sonnet"), ("claude", "sonnet"))
+        self.assertEqual(app.parse_model("claude-opus"), ("claude", "opus"))
+
+
 class NoWindowTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "console windows exist only on Windows")
     def test_flag_is_create_no_window_on_windows(self):

@@ -19,6 +19,7 @@ SYSTEM_PROMPT = (
 INSERT_PATTERN = re.compile(f"{re.escape(INSERT_OPEN)}(.*?){re.escape(INSERT_CLOSE)}", re.DOTALL)
 FENCE_LINE = re.compile(r"^\s*```[\w+-]*\s*$")
 IDENTIFIER_CHAR = re.compile(r"[A-Za-z0-9_$]")
+WORD = re.compile(r"[A-Za-z0-9_$]+")
 HEADER_LINE = re.compile(r"^\s*(?://|#|--|;|<!--)\s*(?!Path:)(\S+\.([A-Za-z0-9]+))\s*(?:-->)?\s*$")
 PROSE_START = re.compile(
     r"^(looking at|based on|i notice|i can see|i need|i'll|i will|here's|here is|the code|the cursor|"
@@ -352,6 +353,9 @@ def has_runaway_repetition(text: str) -> bool:
             while stripped.startswith(unit, start + repeats * period):
                 repeats += 1
             if repeats >= 5 or repeats >= 3 and repeats * period >= max(16, len(stripped) * 0.6):
+                run = stripped[start:start + repeats * period]
+                if WORD.fullmatch(run) and len(run) <= 32:
+                    continue
                 return True
     return False
 

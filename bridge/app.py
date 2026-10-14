@@ -23,6 +23,7 @@ FAKE_COMPLETION = os.environ.get("BRIDGE_FAKE_COMPLETION")
 FAKE_DELAY_MS = int(os.environ.get("BRIDGE_FAKE_DELAY_MS", "300"))
 EXPLANATION_REASONS = ("untagged", "mentions-cursor", "prose")
 AUTH_FAILED = "authentication_failed"
+CLAUDE_MODEL_PINS = {"haiku": "claude-haiku-4-5"}
 
 POOL_SIZE = int(os.environ.get("BRIDGE_POOL_SIZE", "2"))
 MANAGED = os.environ.get("BRIDGE_MANAGED") == "1"
@@ -105,6 +106,8 @@ def run_fake(cmd: list, sock: socket.socket) -> subprocess.CompletedProcess:
 def parse_model(requested_model: str) -> tuple:
     if "-" in requested_model:
         tool, model_id = requested_model.split("-", 1)
+        if tool == "claude":
+            model_id = CLAUDE_MODEL_PINS.get(model_id, model_id)
         return tool, model_id
     return requested_model, "default"
 

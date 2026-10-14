@@ -26,7 +26,7 @@ The status bar shows `Claude haiku` when the bridge is ready. Click it to turn c
 | Setting | Default | Purpose |
 |---|---|---|
 | `claudeAutocomplete.enabled` | `true` | Show completions. |
-| `claudeAutocomplete.model` | `claude-haiku` | `claude-haiku`, `claude-sonnet` or `claude-opus`. Haiku is the fastest. |
+| `claudeAutocomplete.model` | `claude-haiku` | `claude-haiku`, `claude-sonnet` or `claude-opus`. Haiku is the fastest. The bridge pins `claude-haiku` to Haiku 4.5. |
 | `claudeAutocomplete.debounceMs` | `250` | Wait after the last keystroke before a request starts. |
 | `claudeAutocomplete.maxPrefixChars` | `4000` | Code before the cursor to send. |
 | `claudeAutocomplete.maxSuffixChars` | `1000` | Code after the cursor to send. |
